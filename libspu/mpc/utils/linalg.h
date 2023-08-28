@@ -21,6 +21,8 @@
 #include "libspu/core/parallel_utils.h"
 #include "libspu/core/prelude.h"
 
+#include "include/int-gemm/int_gemm.h"
+
 #define EIGEN_HAS_OPENMP
 
 #include "Eigen/Core"
@@ -51,7 +53,7 @@ void setEigenParallelLevel(int64_t expected_threads);
  * @param IDC Inner dimension stride of C
  */
 template <typename T>
-void matmul(int64_t M, int64_t N, int64_t K, const T* A, int64_t LDA,
+void matmul_general(int64_t M, int64_t N, int64_t K, const T* A, int64_t LDA,
             int64_t IDA, const T* B, int64_t LDB, int64_t IDB, T* C,
             int64_t LDC, int64_t IDC) {
   using StrideT = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
@@ -100,5 +102,118 @@ void matmul(int64_t M, int64_t N, int64_t K, const T* A, int64_t LDA,
 
   c.noalias() = a * b;
 }
+
+template <typename T>
+void matrix_copy(int64_t M, int64_t N, 
+    const T* A, int64_t LDA, int64_t IDA, 
+    T* B, int64_t LDB, int64_t IDB)
+{
+    for (int64_t i = 0; i < M; ++i) {
+        for (int64_t j = 0; j < N; ++j) {
+            B[i * LDB + j * IDB] = A[i * LDA + j * IDA];
+        }
+    }
+}
+
+template <typename T>
+void matmul(int64_t M, int64_t N, int64_t K, const T* A, int64_t LDA,
+            int64_t IDA, const T* B, int64_t LDB, int64_t IDB, T* C,
+            int64_t LDC, int64_t IDC) {
+
+    bool type_compatible = 
+        std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
+        std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
+        std::is_same<T, unsigned __int128>::value || std::is_same<T, __int128>::value;
+
+    if (!type_compatible) {
+        matmul_general(M, N, K, A, LDA, IDA, B, LDB, IDB, C, LDC, IDC);
+        return;
+    }
+
+    bool stride_A_compatible = LDA == K * IDA;
+    bool stride_B_compatible = LDB == N * IDB;
+    bool stride_C_compatible = LDC == N * IDC;
+    
+    const T* A_ptr;
+    if (!stride_A_compatible) {
+        T* A_copied = new T[M * K];
+        matrix_copy(M, K, A, LDA, IDA, A_copied, K, 1);
+        A_ptr = A_copied;
+    } else A_ptr = A;
+
+    const T* B_ptr;
+    if (!stride_B_compatible) {
+        T* B_copied = new T[K * N];
+        matrix_copy(K, N, B, LDB, IDB, B_copied, N, 1);
+        B_ptr = B_copied;
+    } else B_ptr = B;
+
+    T* C_ptr;
+    if (!stride_C_compatible) {
+        T* C_copied = new T[M * N];
+        C_ptr = C_copied;
+    } else C_ptr = C;
+    
+    // printf("%d %d %d", stride_A_compatible, stride_B_compatible, stride_C_compatible);
+    
+    if (std::is_same<T, uint32_t>::value) {
+        int_gemm::hostUint32MatmulStrided(
+            M, N, K, 
+            reinterpret_cast<const uint32_t*>(A_ptr), 
+            reinterpret_cast<const uint32_t*>(B_ptr), 
+            reinterpret_cast<uint32_t*>(C_ptr), 
+            stride_A_compatible ? IDA : 1, stride_B_compatible ? IDB : 1, stride_C_compatible ? IDC : 1
+        );
+    } else if (std::is_same<T, int32_t>::value) {
+        int_gemm::hostInt32MatmulStrided(
+            M, N, K, 
+            reinterpret_cast<const int32_t*>(A_ptr), 
+            reinterpret_cast<const int32_t*>(B_ptr), 
+            reinterpret_cast<int32_t*>(C_ptr), 
+            stride_A_compatible ? IDA : 1, stride_B_compatible ? IDB : 1, stride_C_compatible ? IDC : 1
+        );
+    } else if (std::is_same<T, uint64_t>::value) {
+        int_gemm::hostUint64MatmulStrided(
+            M, N, K, 
+            reinterpret_cast<const uint64_t*>(A_ptr), 
+            reinterpret_cast<const uint64_t*>(B_ptr), 
+            reinterpret_cast<uint64_t*>(C_ptr), 
+            stride_A_compatible ? IDA : 1, stride_B_compatible ? IDB : 1, stride_C_compatible ? IDC : 1
+        );
+    } else if (std::is_same<T, int64_t>::value) {
+        int_gemm::hostInt64MatmulStrided(
+            M, N, K, 
+            reinterpret_cast<const int64_t*>(A_ptr), 
+            reinterpret_cast<const int64_t*>(B_ptr), 
+            reinterpret_cast<int64_t*>(C_ptr), 
+            stride_A_compatible ? IDA : 1, stride_B_compatible ? IDB : 1, stride_C_compatible ? IDC : 1
+        );
+    }  else if (std::is_same<T, unsigned __int128>::value) {
+        int_gemm::hostUint128MatmulStrided(
+            M, N, K, 
+            reinterpret_cast<const unsigned __int128*>(A_ptr), 
+            reinterpret_cast<const unsigned __int128*>(B_ptr), 
+            reinterpret_cast<unsigned __int128*>(C_ptr), 
+            stride_A_compatible ? IDA : 1, stride_B_compatible ? IDB : 1, stride_C_compatible ? IDC : 1
+        );
+    } else if (std::is_same<T, __int128_t>::value) {
+        int_gemm::hostInt128MatmulStrided(
+            M, N, K, 
+            reinterpret_cast<const __int128*>(A_ptr), 
+            reinterpret_cast<const __int128*>(B_ptr), 
+            reinterpret_cast<__int128*>(C_ptr), 
+            stride_A_compatible ? IDA : 1, stride_B_compatible ? IDB : 1, stride_C_compatible ? IDC : 1
+        );
+    } else {
+        matmul_general(M, N, K, A, LDA, IDA, B, LDB, IDB, C, LDC, IDC);
+    }
+
+    if (!stride_A_compatible) delete[] A_ptr;
+    if (!stride_B_compatible) delete[] B_ptr;
+    if (!stride_C_compatible) {
+        matrix_copy(M, N, C_ptr, N, 1, C, LDC, IDC);
+        delete[] C_ptr;
+    }
+}  
 
 }  // namespace spu::mpc::linalg

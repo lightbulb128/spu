@@ -42,6 +42,8 @@ def spu_deps():
     _com_github_microsoft_gsl()
     _com_github_microsoft_kuku()
     _com_google_flatbuffers()
+    _com_github_nvidia_cutlass()
+    _com_gitlab_int_gemm()
 
     maybe(
         git_repository,
@@ -355,5 +357,33 @@ def _com_google_flatbuffers():
         strip_prefix = "flatbuffers-23.3.3",
         urls = [
             "https://github.com/google/flatbuffers/archive/refs/tags/v23.3.3.tar.gz",
+        ],
+    )
+
+def _com_github_nvidia_cutlass():
+    maybe(
+        http_archive,
+        name = "com_github_nvidia_cutlass",
+        strip_prefix = "cutlass-3.1.0",
+        urls = [
+            "https://github.com/NVIDIA/cutlass/archive/refs/tags/v3.1.0.tar.gz",
+        ],
+        sha256 = "821aa2e5b709a2e5d3922dcf2c5d445b4898a6ef8bac683cfb00125eafbca029",
+        build_file = "@spulib//bazel:nvidia_cutlass.BUILD",
+    )
+
+def _com_gitlab_int_gemm():
+    # git_repository(
+    #     name = "com_gitlab_int_gemm",
+    #     remote = "https://gitlab.com/lightbulb1281/int-gemm.git",
+    #     commit = "3019c54d37c95c818b71c04b0c615bcbbb786a10",
+    #     # build_file = "@spulib//bazel:int_gemm.BUILD",
+    # )
+    maybe(
+        http_archive,
+        name = "com_gitlab_int_gemm",
+        strip_prefix = "int-gemm-main",
+        urls = [
+            "https://gitlab.com/lightbulb1281/int-gemm/-/archive/main/int-gemm-main.tar.gz",
         ],
     )
