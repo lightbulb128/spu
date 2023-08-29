@@ -47,8 +47,9 @@ if __name__ == '__main__':
         ppd.RPC.serve(args.node_id, nodes_def)
     elif args.command == 'up':
         workers = []
+        ctx = multiprocess.get_context('spawn')
         for node_id in nodes_def.keys():
-            worker = multiprocess.Process(
+            worker = ctx.Process(
                 target=ppd.RPC.serve, args=(node_id, nodes_def)
             )
             worker.start()

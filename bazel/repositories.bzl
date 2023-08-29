@@ -382,8 +382,8 @@ def _com_gitlab_int_gemm():
     maybe(
         http_archive,
         name = "com_gitlab_int_gemm",
-        strip_prefix = "int-gemm-main",
+        strip_prefix = "int-gemm-54078e05953e7e8a549c7fe96759772f48530430",
         urls = [
-            "https://gitlab.com/lightbulb1281/int-gemm/-/archive/main/int-gemm-main.tar.gz",
+            "https://gitlab.com/lightbulb1281/int-gemm/-/archive/54078e05953e7e8a549c7fe96759772f48530430/int-gemm-54078e05953e7e8a549c7fe96759772f48530430.tar.gz",
         ],
     )
